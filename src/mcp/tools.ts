@@ -1,20 +1,53 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import { rawg } from "../rawg/client.js";
 import type {
+  Achievement,
+  Creator,
+  Developer,
   Game,
   GameDetails,
-  Achievement,
-  Screenshot,
-  Trailer,
   GameStore,
-  Creator,
   Genre,
+  PaginatedResponse,
   Platform,
-  Developer,
   Publisher,
   RedditPost,
-  PaginatedResponse,
+  Screenshot,
+  Trailer,
 } from "../rawg/types.js";
+
+// ─── Schemas Zod reutilizables ────────────────────────────────────────────────
+
+const IdSchema = z.object({
+  id: z.string().regex(/^[a-zA-Z0-9_-]{1,200}$/, "id must be an alphanumeric slug or numeric id"),
+});
+
+const PaginationSchema = z.object({
+  page: z.number().int().min(1).optional(),
+  page_size: z.number().int().min(1).max(40).optional(),
+});
+
+const SearchGamesSchema = z.object({
+  search: z.string().max(500).optional(),
+  genres: z.string().max(200).optional(),
+  platforms: z.string().max(200).optional(),
+  developers: z.string().max(200).optional(),
+  publishers: z.string().max(200).optional(),
+  tags: z.string().max(200).optional(),
+  dates: z.string().regex(/^\d{4}-\d{2}-\d{2},\d{4}-\d{2}-\d{2}$/).optional(),
+  metacritic: z.string().regex(/^\d{1,3},\d{1,3}$/).optional(),
+  ordering: z.enum([
+    "name", "-name", "released", "-released", "added", "-added",
+    "rating", "-rating", "metacritic", "-metacritic",
+  ]).optional(),
+  page: z.number().int().min(1).optional(),
+  page_size: z.number().int().min(1).max(40).optional(),
+}).strict();
+
+const CatalogListSchema = PaginationSchema.extend({
+  ordering: z.string().max(50).optional(),
+}).strict();
 
 // ─── Definiciones de herramientas ────────────────────────────────────────────
 
@@ -83,10 +116,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego" },
         page: { type: "number", description: "Número de página" },
         page_size: { type: "number", description: "Resultados por página (máximo 40)" },
       },
@@ -100,10 +130,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego" },
       },
       required: ["id"],
     },
@@ -115,10 +142,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego" },
         page: { type: "number", description: "Número de página" },
         page_size: { type: "number", description: "Resultados por página (máximo 40)" },
       },
@@ -132,10 +156,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego" },
       },
       required: ["id"],
     },
@@ -147,10 +168,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego principal",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego principal" },
         page: { type: "number", description: "Número de página" },
         page_size: { type: "number", description: "Resultados por página (máximo 40)" },
       },
@@ -164,10 +182,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug de cualquier juego de la saga",
-        },
+        id: { type: "string", description: "ID numérico o slug de cualquier juego de la saga" },
         page: { type: "number", description: "Número de página" },
         page_size: { type: "number", description: "Resultados por página (máximo 40)" },
       },
@@ -181,10 +196,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego" },
         page: { type: "number", description: "Número de página" },
         page_size: { type: "number", description: "Resultados por página (máximo 40)" },
       },
@@ -198,10 +210,7 @@ export const MCP_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        id: {
-          type: "string",
-          description: "ID numérico o slug del juego",
-        },
+        id: { type: "string", description: "ID numérico o slug del juego" },
       },
       required: ["id"],
     },
@@ -276,7 +285,7 @@ export const MCP_TOOLS: Tool[] = [
   },
 ];
 
-// ─── Handlers de herramientas ─────────────────────────────────────────────────
+// ─── Handler principal ────────────────────────────────────────────────────────
 
 type Args = Record<string, unknown>;
 
@@ -290,76 +299,82 @@ export async function handleTool(
   };
 }
 
+// ─── Dispatch con validación Zod ─────────────────────────────────────────────
+
 async function executeTool(name: string, args: Args): Promise<unknown> {
   switch (name) {
     case "search_games": {
-      return rawg.get<PaginatedResponse<Game>>("/games", args);
+      const params = SearchGamesSchema.parse(args);
+      return rawg.get<PaginatedResponse<Game>>("/games", params);
     }
 
     case "get_game_details": {
-      const { id } = args as { id: string };
+      const { id } = IdSchema.parse(args);
       return rawg.get<GameDetails>(`/games/${id}`);
     }
 
     case "get_game_achievements": {
-      const { id, ...params } = args as { id: string } & Args;
-      return rawg.get<PaginatedResponse<Achievement>>(`/games/${id}/achievements`, params);
+      const { id, ...rest } = IdSchema.merge(PaginationSchema).parse(args);
+      return rawg.get<PaginatedResponse<Achievement>>(`/games/${id}/achievements`, rest);
     }
 
     case "get_game_trailers": {
-      const { id } = args as { id: string };
+      const { id } = IdSchema.parse(args);
       return rawg.get<PaginatedResponse<Trailer>>(`/games/${id}/movies`);
     }
 
     case "get_game_screenshots": {
-      const { id, ...params } = args as { id: string } & Args;
-      return rawg.get<PaginatedResponse<Screenshot>>(`/games/${id}/screenshots`, params);
+      const { id, ...rest } = IdSchema.merge(PaginationSchema).parse(args);
+      return rawg.get<PaginatedResponse<Screenshot>>(`/games/${id}/screenshots`, rest);
     }
 
     case "get_game_stores": {
-      const { id } = args as { id: string };
+      const { id } = IdSchema.parse(args);
       return rawg.get<PaginatedResponse<GameStore>>(`/games/${id}/stores`);
     }
 
     case "get_game_dlcs": {
-      const { id, ...params } = args as { id: string } & Args;
-      return rawg.get<PaginatedResponse<Game>>(`/games/${id}/additions`, params);
+      const { id, ...rest } = IdSchema.merge(PaginationSchema).parse(args);
+      return rawg.get<PaginatedResponse<Game>>(`/games/${id}/additions`, rest);
     }
 
     case "get_game_series": {
-      const { id, ...params } = args as { id: string } & Args;
-      return rawg.get<PaginatedResponse<Game>>(`/games/${id}/game-series`, params);
+      const { id, ...rest } = IdSchema.merge(PaginationSchema).parse(args);
+      return rawg.get<PaginatedResponse<Game>>(`/games/${id}/game-series`, rest);
     }
 
     case "get_game_team": {
-      const { id, ...params } = args as { id: string } & Args;
-      return rawg.get<PaginatedResponse<Creator>>(`/games/${id}/development-team`, params);
+      const { id, ...rest } = IdSchema.merge(PaginationSchema).parse(args);
+      return rawg.get<PaginatedResponse<Creator>>(`/games/${id}/development-team`, rest);
     }
 
     case "get_game_reddit": {
-      const { id } = args as { id: string };
+      const { id } = IdSchema.parse(args);
       return rawg.get<PaginatedResponse<RedditPost>>(`/games/${id}/reddit`);
     }
 
     case "list_genres": {
-      return rawg.get<PaginatedResponse<Genre>>("/genres", args);
+      const params = CatalogListSchema.parse(args);
+      return rawg.get<PaginatedResponse<Genre>>("/genres", params);
     }
 
     case "list_platforms": {
-      return rawg.get<PaginatedResponse<Platform>>("/platforms", args);
+      const params = CatalogListSchema.parse(args);
+      return rawg.get<PaginatedResponse<Platform>>("/platforms", params);
     }
 
     case "list_creators": {
-      return rawg.get<PaginatedResponse<Creator>>("/creators", args);
+      const params = PaginationSchema.parse(args);
+      return rawg.get<PaginatedResponse<Creator>>("/creators", params);
     }
 
     case "get_developer_games": {
-      const { id } = args as { id: string };
+      const { id } = IdSchema.parse(args);
       return rawg.get<Developer>(`/developers/${id}`);
     }
 
     case "get_publisher_games": {
-      const { id } = args as { id: string };
+      const { id } = IdSchema.parse(args);
       return rawg.get<Publisher>(`/publishers/${id}`);
     }
 

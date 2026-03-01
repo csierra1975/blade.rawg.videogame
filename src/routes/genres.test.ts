@@ -44,7 +44,7 @@ describe("GET /api/genres", () => {
     await app.request("/api/genres?page=2&page_size=10&ordering=-games_count");
     expect(rawg.get).toHaveBeenCalledWith(
       "/genres",
-      expect.objectContaining({ page: "2", page_size: "10", ordering: "-games_count" }),
+      expect.objectContaining({ page: 2, page_size: 10, ordering: "-games_count" }),
     );
   });
 

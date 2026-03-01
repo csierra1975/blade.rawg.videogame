@@ -47,7 +47,7 @@ describe("GET /api/publishers", () => {
     await app.request("/api/publishers?page=2&ordering=-games_count");
     expect(rawg.get).toHaveBeenCalledWith(
       "/publishers",
-      expect.objectContaining({ page: "2", ordering: "-games_count" }),
+      expect.objectContaining({ page: 2, ordering: "-games_count" }),
     );
   });
 });

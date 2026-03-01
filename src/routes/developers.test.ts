@@ -48,7 +48,7 @@ describe("GET /api/developers", () => {
     await app.request("/api/developers?page=3&page_size=20");
     expect(rawg.get).toHaveBeenCalledWith(
       "/developers",
-      expect.objectContaining({ page: "3", page_size: "20" }),
+      expect.objectContaining({ page: 3, page_size: 20 }),
     );
   });
 });

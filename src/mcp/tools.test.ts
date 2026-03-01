@@ -110,6 +110,43 @@ describe("handleTool", () => {
   });
 });
 
+// ─── handleTool — validación Zod ─────────────────────────────────────────────
+
+describe("handleTool — validación de argumentos con Zod", () => {
+  it("lanza ZodError si id contiene path traversal", async () => {
+    await expect(handleTool("get_game_details", { id: "../../etc/passwd" })).rejects.toThrow();
+  });
+
+  it("lanza ZodError si id está vacío", async () => {
+    await expect(handleTool("get_game_details", { id: "" })).rejects.toThrow();
+  });
+
+  it("lanza ZodError si id es un objeto (no string)", async () => {
+    await expect(handleTool("get_game_details", { id: { toString: () => "injected" } })).rejects.toThrow();
+  });
+
+  it("lanza ZodError si page_size supera 40 en search_games", async () => {
+    await expect(handleTool("search_games", { page_size: 999 })).rejects.toThrow();
+  });
+
+  it("lanza ZodError si dates tiene formato incorrecto", async () => {
+    await expect(handleTool("search_games", { dates: "not-a-date" })).rejects.toThrow();
+  });
+
+  it("lanza ZodError si ordering es un valor arbitrario en search_games", async () => {
+    await expect(handleTool("search_games", { ordering: "hack;DROP TABLE" })).rejects.toThrow();
+  });
+
+  it("lanza ZodError si se pasan campos extra en search_games (strict mode)", async () => {
+    await expect(handleTool("search_games", { unknown_key: "value" })).rejects.toThrow();
+  });
+
+  it("acepta id válido con guiones y números", async () => {
+    vi.mocked(rawg.get).mockResolvedValueOnce({});
+    await expect(handleTool("get_game_details", { id: "the-witcher-3-wild-hunt" })).resolves.not.toThrow();
+  });
+});
+
 // ─── handleTool — dispatch de cada herramienta ──────────────────────────────
 
 describe("handleTool — rutas al cliente RAWG", () => {

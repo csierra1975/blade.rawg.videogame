@@ -2,13 +2,15 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { secureHeaders } from "hono/secure-headers";
 import { config } from "./config.js";
+import { rateLimit } from "./middleware/rate-limit.js";
 import { RawgError } from "./rawg/client.js";
+import { creatorsRouter } from "./routes/creators.js";
+import { developersRouter } from "./routes/developers.js";
 import { gamesRouter } from "./routes/games.js";
 import { genresRouter } from "./routes/genres.js";
 import { platformsRouter } from "./routes/platforms.js";
-import { creatorsRouter } from "./routes/creators.js";
-import { developersRouter } from "./routes/developers.js";
 import { publishersRouter } from "./routes/publishers.js";
 import { tagsRouter } from "./routes/tags.js";
 
@@ -16,8 +18,20 @@ const app = new Hono();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-app.use("*", cors());
+app.use("*", secureHeaders());
+
+app.use(
+  "*",
+  cors({
+    origin: config.corsOrigin === "*" ? "*" : config.corsOrigin.split(",").map((o) => o.trim()),
+    allowMethods: ["GET"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400,
+  }),
+);
+
 app.use("*", logger());
+app.use("/api/*", rateLimit(config.rateLimit));
 
 // ─── Rutas ───────────────────────────────────────────────────────────────────
 
@@ -53,12 +67,15 @@ app.get("/", (c) =>
 
 app.onError((err, c) => {
   if (err instanceof RawgError) {
-    return c.json(
-      { error: err.message, rawg_status: err.status },
-      err.status as 400 | 404 | 429 | 500,
-    );
+    console.error(`[RawgError] status=${err.status} body=${err.body}`);
+
+    if (err.status === 404) return c.json({ error: "Resource not found" }, 404);
+    if (err.status === 429) return c.json({ error: "Service temporarily unavailable. Try again later." }, 503);
+    if (err.status === 504) return c.json({ error: "Upstream service timeout. Try again later." }, 504);
+    return c.json({ error: "Upstream service error" }, 502);
   }
-  console.error("Unhandled error:", err);
+
+  console.error("[UnhandledError]", err);
   return c.json({ error: "Internal server error" }, 500);
 });
 

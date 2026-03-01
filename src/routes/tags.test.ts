@@ -50,7 +50,7 @@ describe("GET /api/tags", () => {
     await app.request("/api/tags?page=2&page_size=5&ordering=name");
     expect(rawg.get).toHaveBeenCalledWith(
       "/tags",
-      expect.objectContaining({ page: "2", page_size: "5", ordering: "name" }),
+      expect.objectContaining({ page: 2, page_size: 5, ordering: "name" }),
     );
   });
 });

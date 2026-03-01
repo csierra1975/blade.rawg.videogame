@@ -134,4 +134,43 @@ describe("RawgClient", () => {
       Accept: "application/json",
     });
   });
+
+  it("pasa AbortSignal a fetch (timeout)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response);
+
+    await client.get("/games");
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("lanza RawgError con status 504 si fetch es abortado por timeout", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(
+      Object.assign(new Error("The operation was aborted"), { name: "AbortError" }),
+    );
+
+    await expect(client.get("/games")).rejects.toMatchObject({
+      status: 504,
+      name: "RawgError",
+    });
+  });
+
+  it("trunca el body del error a 500 caracteres", async () => {
+    const longBody = "x".repeat(1000);
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      text: () => Promise.resolve(longBody),
+    } as Response);
+
+    try {
+      await client.get("/games");
+    } catch (err) {
+      expect((err as RawgError).body.length).toBeLessThanOrEqual(500);
+    }
+  });
 });

@@ -44,7 +44,7 @@ describe("GET /api/platforms", () => {
     await app.request("/api/platforms?page=1&ordering=name");
     expect(rawg.get).toHaveBeenCalledWith(
       "/platforms",
-      expect.objectContaining({ page: "1", ordering: "name" }),
+      expect.objectContaining({ page: 1, ordering: "name" }),
     );
   });
 });

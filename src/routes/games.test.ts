@@ -70,12 +70,26 @@ describe("GET /api/games", () => {
     );
   });
 
-  it("pasa paginación (page y page_size)", async () => {
+  it("pasa paginación sanitizada (page y page_size)", async () => {
     await app.request("/api/games?page=2&page_size=40");
     expect(rawg.get).toHaveBeenCalledWith(
       "/games",
-      expect.objectContaining({ page: "2", page_size: "40" }),
+      expect.objectContaining({ page: 2, page_size: 40 }),
     );
+  });
+
+  it("limita page_size a 40 aunque se pida más", async () => {
+    await app.request("/api/games?page_size=999");
+    expect(rawg.get).toHaveBeenCalledWith(
+      "/games",
+      expect.objectContaining({ page_size: 40 }),
+    );
+  });
+
+  it("ignora ordering inválido", async () => {
+    await app.request("/api/games?ordering=arbitrary_hack");
+    const call = vi.mocked(rawg.get).mock.calls[0][1] as Record<string, unknown>;
+    expect(call.ordering).toBeUndefined();
   });
 
   it("devuelve 500 si rawg.get lanza un Error genérico", async () => {
@@ -96,6 +110,10 @@ describe("GET /api/games", () => {
 // ─── GET /api/games/:id ───────────────────────────────────────────────────────
 
 describe("GET /api/games/:id", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("llama a rawg.get con /games/:id y devuelve el detalle", async () => {
     vi.mocked(rawg.get).mockResolvedValueOnce(GAME_DETAIL);
     const res = await app.request("/api/games/3498");
@@ -110,6 +128,19 @@ describe("GET /api/games/:id", () => {
     await app.request("/api/games/the-witcher-3-wild-hunt");
     expect(rawg.get).toHaveBeenCalledWith("/games/the-witcher-3-wild-hunt");
   });
+
+  it("bloquea path traversal: rawg.get no debe ser llamado", async () => {
+    // Hono normaliza el path → 404, o la validación lo rechaza → 400. Ambos son seguros.
+    const res = await app.request("/api/games/..%2F..%2Fetc%2Fpasswd");
+    expect([400, 404]).toContain(res.status);
+    expect(rawg.get).not.toHaveBeenCalled();
+  });
+
+  it("devuelve 400 si el id contiene caracteres especiales inyectados", async () => {
+    const res = await app.request("/api/games/3498%3Fkey%3Dinjected");
+    expect(res.status).toBe(400);
+    expect(rawg.get).not.toHaveBeenCalled();
+  });
 });
 
 // ─── Sub-rutas de juegos ──────────────────────────────────────────────────────
@@ -122,7 +153,7 @@ describe("GET /api/games/:id/achievements", () => {
     expect(res.status).toBe(200);
     expect(rawg.get).toHaveBeenCalledWith(
       "/games/3498/achievements",
-      expect.objectContaining({ page: "1", page_size: "20" }),
+      expect.objectContaining({ page: 1, page_size: 20 }),
     );
   });
 });
@@ -141,7 +172,7 @@ describe("GET /api/games/:id/screenshots", () => {
     await app.request("/api/games/3498/screenshots?page=2");
     expect(rawg.get).toHaveBeenCalledWith(
       "/games/3498/screenshots",
-      expect.objectContaining({ page: "2" }),
+      expect.objectContaining({ page: 2 }),
     );
   });
 });
