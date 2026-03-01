@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { config } from "./config.js";
+import { apiKeyAuth } from "./middleware/auth.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { RawgError } from "./rawg/client.js";
 import { creatorsRouter } from "./routes/creators.js";
@@ -25,12 +26,13 @@ app.use(
   cors({
     origin: config.corsOrigin === "*" ? "*" : config.corsOrigin.split(",").map((o) => o.trim()),
     allowMethods: ["GET"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
     maxAge: 86400,
   }),
 );
 
 app.use("*", logger());
+app.use("/api/*", apiKeyAuth);
 app.use("/api/*", rateLimit(config.rateLimit));
 
 // ─── Rutas ───────────────────────────────────────────────────────────────────

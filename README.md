@@ -22,6 +22,7 @@ Crea un fichero `.env` en la raíz:
 
 ```env
 RAWG_API_KEY=tu_clave_aqui
+API_SECRET_KEY=tu_clave_secreta_aqui
 PORT=3000
 ```
 
@@ -40,6 +41,25 @@ PORT=3000
 ## API HTTP
 
 Base URL: `http://localhost:3000`
+
+### Autenticación
+
+Todos los endpoints bajo `/api/*` requieren la cabecera `x-api-key` con el valor definido en `API_SECRET_KEY`.
+
+```http
+GET /api/games
+x-api-key: tu_clave_secreta_aqui
+```
+
+Si la cabecera falta o el valor es incorrecto, la API devuelve `403 Forbidden`:
+
+```json
+{ "error": "Forbidden: invalid or missing API key" }
+```
+
+> El servidor MCP (`mcp.ts`) no requiere esta autenticación al ser de uso local.
+
+---
 
 ### Health check
 
@@ -274,6 +294,9 @@ src/
 ├── rawg/
 │   ├── client.ts      # Cliente HTTP para RAWG API
 │   └── types.ts       # Tipos TypeScript
+├── middleware/
+│   ├── auth.ts        # Autenticación por API key (x-api-key)
+│   └── rate-limit.ts  # Rate limiting por IP
 ├── mcp/
 │   └── tools.ts       # Definición y handlers de herramientas MCP
 └── routes/
@@ -306,6 +329,7 @@ La mayoría de endpoints de lista devuelven esta estructura:
 | Código | Descripción |
 |---|---|
 | `400` | Parámetros inválidos |
+| `403` | API key ausente o incorrecta |
 | `404` | Recurso no encontrado |
 | `429` | Rate limit de RAWG alcanzado |
 | `500` | Error interno del servidor |

@@ -16,6 +16,7 @@ if (isNaN(rateLimitRaw) || rateLimitRaw < 1) {
 
 export const config = {
   rawgApiKey: process.env.RAWG_API_KEY ?? "",
+  apiSecretKey: process.env.API_SECRET_KEY ?? "",
   port: portRaw,
   rawgBaseUrl: "https://api.rawg.io/api",
   /** Orígenes CORS permitidos. Usa "*" para desarrollo o una lista separada por comas en producción. */
@@ -29,5 +30,10 @@ export const config = {
 if (!config.rawgApiKey) {
   console.error("ERROR: RAWG_API_KEY no definida. Crea un fichero .env con RAWG_API_KEY=tu_clave");
   console.error("Obtén tu clave en: https://rawg.io/apidocs");
+  process.exit(1);
+}
+
+if (!config.apiSecretKey) {
+  console.error("ERROR: API_SECRET_KEY no definida. Crea un fichero .env con API_SECRET_KEY=tu_clave_secreta");
   process.exit(1);
 }
